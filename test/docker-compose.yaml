@@ -1,0 +1,12 @@
+version: "3.4"
+services:
+  sftp-server:
+    image: "atmoz/sftp:alpine"
+    container_name: "sftp-server"
+    ports:
+      - "2222:22"
+    volumes:
+      - "./ssh_key:/etc/ssh/ssh_host_rsa_key"
+      - "./ssh_key.pub:/home/foo/.ssh/keys/id_rsa.pub:ro"
+      - "./share:/home/foo/share"
+    command: "foo::1001"
