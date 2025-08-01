@@ -79,6 +79,16 @@ type (
 		Payload []byte
 	}
 
+	// sequence interface provides a sequence id
+	sequence interface {
+		id() uint32
+	}
+
+	// Header embeds a sequence implementation in messages that required one
+	Header struct {
+		Id uint32
+	}
+
 	// Msg is an Session protocol message
 	Msg interface {
 		encoding.BinaryMarshaler
@@ -140,28 +150,28 @@ type (
 	}
 
 	OpenDirReq struct {
-		Id   uint32
+		Header
 		Path string
 	}
 
 	ReadDirReq struct {
-		Id     uint32
+		Header
 		Handle string
 	}
 
 	HandleResp struct {
-		Id     uint32
+		Header
 		Handle string
 	}
 
 	StatusResp struct {
-		Id           uint32
+		Header
 		ErrorCode    uint32
 		ErrorMessage string
 		LanguageTag  string
 	}
 	NameResp struct {
-		Id    uint32
+		Header
 		Count uint32
 		Names []NameRespFile
 	}
@@ -171,7 +181,7 @@ type (
 		Attrs    Attrs
 	}
 	CloseReq struct {
-		Id     uint32
+		Header
 		Handle string
 	}
 
@@ -226,6 +236,10 @@ func TypeId(m Msg) (uint8, error) {
 	default:
 		return 0, fmt.Errorf("unhandled msg type: %T", m)
 	}
+}
+
+func (h Header) id() uint32 {
+	return h.Id
 }
 
 func (i *InitReq) UnmarshalBinary(b []byte) error {
@@ -318,14 +332,7 @@ func (r *NameResp) UnmarshalBinary(b []byte) error {
 	r.Id = binary.BigEndian.Uint32(b[0:4])
 	r.Count = binary.BigEndian.Uint32(b[4:8])
 	os := uint32(8) // offset
-	//
-	flags := binary.BigEndian.Uint32(b[0:4])
-	size := SSH_FILEXFER_ATTR_SIZE&flags != 0
-	uidguid := SSH_FILEXFER_ATTR_UIDGID&flags != 0
-	permissions := SSH_FILEXFER_ATTR_PERMISSIONS&flags != 0
-	acmodtime := SSH_FILEXFER_ATTR_ACMODTIME&flags != 0
-	extended := SSH_FILEXFER_ATTR_EXTENDED&flags != 0
-	size = false
+	// @todo confirm Attr flags do not apply here
 
 	for i := uint32(0); i < r.Count; i++ {
 		v := NameRespFile{}
@@ -338,31 +345,38 @@ func (r *NameResp) UnmarshalBinary(b []byte) error {
 		v.Longname = string(b[os : os+lnLen])
 		os += lnLen
 
-		if size {
+		flags := binary.BigEndian.Uint32(b[os : os+4])
+		os += 4
+
+		if flags&SSH_FILEXFER_ATTR_SIZE != 0 {
 			v.Attrs.Size = binary.BigEndian.Uint64(b[os : os+8])
-
+			os += 8
 		}
-		os += 8
 
-		if uidguid {
-			// @todo
+		if flags&SSH_FILEXFER_ATTR_UIDGID != 0 {
+			v.Attrs.Uid = binary.BigEndian.Uint32(b[os : os+4])
+			v.Attrs.Gid = binary.BigEndian.Uint32(b[os+4 : os+8])
+			os += 8
 		}
-		os += 8
 
-		if permissions {
-			// @todo
+		if flags&SSH_FILEXFER_ATTR_PERMISSIONS != 0 {
+			v.Attrs.Permissions = binary.BigEndian.Uint32(b[os : os+4])
+			os += 4
 		}
-		os += 4
 
-		if acmodtime {
-			// @todo
+		if flags&SSH_FILEXFER_ATTR_ACMODTIME != 0 {
+			v.Attrs.Atime = binary.BigEndian.Uint32(b[os : os+4])
+			v.Attrs.Mtime = binary.BigEndian.Uint32(b[os+4 : os+8])
+			os += 8
 		}
-		os += 8
 
-		if extended {
-			// @todo
+		if flags&SSH_FILEXFER_ATTR_EXTENDED != 0 {
+			v.Attrs.ExtendedCount = binary.BigEndian.Uint32(b[os : os+4])
+			os += 4
+			if v.Attrs.ExtendedCount > 0 {
+				panic("extended count not supported yet")
+			}
 		}
-		os += 4
 
 		r.Names = append(r.Names, v)
 	}

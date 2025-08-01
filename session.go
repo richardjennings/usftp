@@ -1,80 +1,87 @@
 package usftp
 
 import (
-	"bytes"
-	"encoding/binary"
+	"context"
 	"errors"
 	"fmt"
 	"golang.org/x/crypto/ssh"
-	"io"
+	"golang.org/x/sync/errgroup"
+	"sync/atomic"
 )
 
 type (
 	Session struct {
-		s   *ssh.Session
-		r   io.Reader
-		w   io.Writer
-		seq uint32
+		s      *ssh.Session
+		r      reader
+		w      writer
+		ctx    context.Context
+		cancel context.CancelFunc
+		seq    uint32
+		errors []error
 	}
 )
 
+func NewSession(c *ssh.Client) (*Session, error) {
+	session, err := c.NewSession()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := session.RequestSubsystem("sftp"); err != nil {
+		return nil, err
+	}
+
+	w, err := session.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := session.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	s := &Session{
+		s:      session,
+		r:      reader{r: r, rChan: make(map[uint32]chan Msg)},
+		w:      writer{w: w},
+		ctx:    ctx,
+		cancel: cancel,
+	}
+
+	go func() {
+		eg, ctx := errgroup.WithContext(s.ctx)
+		eg.Go(s.r.handler(s, ctx))
+		_ = eg.Wait()
+	}()
+
+	err = s.init()
+	return s, err
+}
+
+func (s *Session) Errors() []error {
+	return s.errors
+}
+
 func (s *Session) Close() error {
+	s.cancel()
 	return s.s.Close()
 }
 
-func (s *Session) read() (Msg, error) {
-	p := &packet{}
-	read := func(v interface{}) error {
-		return binary.Read(s.r, binary.BigEndian, v)
-	}
-	if err := read(&p.Length); err != nil {
-		return nil, err
-	}
-	if err := read(&p.Type); err != nil {
-		return nil, err
-	}
-	p.Payload = make([]byte, p.Length-1)
-	if err := read(&p.Payload); err != nil {
-		return nil, err
-	}
-	return p.message()
-}
-
-func (s *Session) write(m Msg) error {
-	buf := bytes.NewBuffer(nil)
-	payload, err := m.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	l := uint32(len(payload)) + 1
-	if err := binary.Write(buf, binary.BigEndian, l); err != nil {
-		return err
-	}
-	t, err := TypeId(m)
-	if err != nil {
-		return err
-	}
-	if err := binary.Write(buf, binary.BigEndian, t); err != nil {
-		return err
-	}
-	buf.Write(payload)
-	_, err = s.w.Write(buf.Bytes())
-	return err
-}
-
 func (s *Session) nextSeq() uint32 {
-	s.seq++
+	atomic.AddUint32(&s.seq, 1)
 	return s.seq
 }
 
-func (s *Session) Init() error {
-	if err := s.write(&InitReq{Version: 3}); err != nil {
+func (s *Session) init() error {
+	defer s.r.delChan(0)
+	if err := s.w.write(&InitReq{Version: 3}); err != nil {
 		return err
 	}
-	msg, err := s.read()
-	if err != nil {
-		return err
-	}
+	c := s.r.getChan(0)
+	msg := <-c
 	if msg, ok := msg.(*VersionResp); ok {
 		if msg.Version != 3 {
 			return fmt.Errorf("unhandled SFTP version: %d", msg.Version)
@@ -88,15 +95,14 @@ func (s *Session) Init() error {
 func (s *Session) Ls(path string) ([]NameRespFile, error) {
 	var names []NameRespFile
 	id := s.nextSeq()
-	if err := s.write(&OpenDirReq{Id: id, Path: path}); err != nil {
+	read := s.r.getChan(id)
+	defer s.r.delChan(id)
+	if err := s.w.write(&OpenDirReq{Header: Header{Id: id}, Path: path}); err != nil {
 		return nil, err
 	}
 	var handle string
+	msg := <-read
 	// expect SSH_FXP_HANDLE or SSH_FXP_STATUS response
-	msg, err := s.read()
-	if err != nil {
-		return nil, err
-	}
 	switch msg := msg.(type) {
 	case *HandleResp:
 		handle = msg.Handle
@@ -105,16 +111,12 @@ func (s *Session) Ls(path string) ([]NameRespFile, error) {
 	default:
 		return nil, errors.New("unhandled")
 	}
-
 	cont := true
 	for cont {
-		if err := s.write(&ReadDirReq{Id: id, Handle: handle}); err != nil {
+		if err := s.w.write(&ReadDirReq{Header: Header{Id: id}, Handle: handle}); err != nil {
 			return nil, err
 		}
-		msg, err = s.read()
-		if err != nil {
-			return nil, err
-		}
+		msg = <-read
 		// expect SSH_FXP_NAME or SSH_FXP_STATUS response
 		switch msg := msg.(type) {
 		case *NameResp:
@@ -130,13 +132,11 @@ func (s *Session) Ls(path string) ([]NameRespFile, error) {
 		}
 	}
 	// SSH_FXP_CLOSE
-	if err := s.write(&CloseReq{Id: id, Handle: handle}); err != nil {
+	if err := s.w.write(&CloseReq{Header: Header{Id: id}, Handle: handle}); err != nil {
 		return nil, err
 	}
-	msg, err = s.read()
-	if err != nil {
-		return nil, err
-	}
+	msg = <-read
+
 	// expect SSH_FXP_STATUS
 	switch msg := msg.(type) {
 	case *StatusResp:
