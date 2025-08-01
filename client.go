@@ -58,10 +58,9 @@ func (c *Client) NewSession() (*Session, error) {
 		return nil, err
 	}
 	s := &Session{
-		seq: 1,
-		s:   session,
-		r:   r,
-		w:   w,
+		s: session,
+		r: r,
+		w: w,
 	}
 	err = s.Init()
 	return s, err
