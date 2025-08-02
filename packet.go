@@ -189,7 +189,7 @@ type (
 		Size          uint64
 		Uid           uint32
 		Gid           uint32
-		Permissions   uint32
+		Permissions   FileMode
 		Atime         uint32
 		Mtime         uint32
 		ExtendedCount uint32
@@ -330,7 +330,7 @@ func (r *NameResp) UnmarshalBinary(b []byte) error {
 	r.Id, b = Uint32(b)
 	r.Count, b = Uint32(b)
 	var flags uint32
-	
+
 	for i := uint32(0); i < r.Count; i++ {
 		v := NameRespFile{}
 		v.Filename, b = String(b)
@@ -344,7 +344,9 @@ func (r *NameResp) UnmarshalBinary(b []byte) error {
 			v.Attrs.Gid, b = Uint32(b)
 		}
 		if flags&SSH_FILEXFER_ATTR_PERMISSIONS != 0 {
-			v.Attrs.Permissions, b = Uint32(b)
+			var p uint32
+			p, b = Uint32(b)
+			v.Attrs.Permissions = FileMode(p)
 		}
 		if flags&SSH_FILEXFER_ATTR_ACMODTIME != 0 {
 			v.Attrs.Atime, b = Uint32(b)
@@ -359,9 +361,9 @@ func (r *NameResp) UnmarshalBinary(b []byte) error {
 
 		r.Names = append(r.Names, v)
 	}
-
 	return nil
 }
+
 func (r *NameResp) MarshalBinary() ([]byte, error) {
 	return nil, nil
 }
