@@ -1,4 +1,6 @@
-.PHONY: run sshkey up down
+.PHONY: run sshkey up down tests test
+
+test: sshkey down up tests down
 
 sshkey:
 	rm ssh_key ssh_key.pub  || true
@@ -8,9 +10,9 @@ up: sshkey
 	docker compose up -d
 
 down:
-	docker compose down -v
+	docker compose down -v || true
 
-test:
-	go test ./...
+tests:
+	go test -v ./...
 
-run: sshkey up test down
+

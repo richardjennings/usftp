@@ -2,7 +2,6 @@ package usftp
 
 import (
 	"bytes"
-	"encoding/binary"
 	"io"
 )
 
@@ -19,14 +18,14 @@ func (w *writer) write(m Msg) error {
 		return err
 	}
 	l := uint32(len(payload)) + 1
-	if err := binary.Write(buf, binary.BigEndian, l); err != nil {
+	if err := WriteUint32(buf, l); err != nil {
 		return err
 	}
 	t, err := TypeId(m)
 	if err != nil {
 		return err
 	}
-	if err := binary.Write(buf, binary.BigEndian, t); err != nil {
+	if err := WriteUint8(buf, t); err != nil {
 		return err
 	}
 	buf.Write(payload)

@@ -17,7 +17,6 @@ type (
 		ctx    context.Context
 		cancel context.CancelFunc
 		seq    uint32
-		errors []error
 	}
 )
 
@@ -59,10 +58,6 @@ func NewSession(c *ssh.Client) (*Session, error) {
 
 	err = s.init()
 	return s, err
-}
-
-func (s *Session) Errors() []error {
-	return s.errors
 }
 
 func (s *Session) Close() error {

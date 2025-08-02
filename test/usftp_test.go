@@ -39,5 +39,7 @@ func Test_Ls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = names
+	if len(names) != 4 {
+		t.Errorf("got %d names, expected 4", len(names))
+	}
 }
