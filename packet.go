@@ -243,7 +243,8 @@ func (h Header) id() uint32 {
 }
 
 func (i *InitReq) UnmarshalBinary(b []byte) error {
-	return binary.Read(bytes.NewBuffer(b), binary.BigEndian, i.Version)
+	i.Version, b = Uint32(b)
+	return nil
 }
 func (i *InitReq) MarshalBinary() ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
@@ -254,7 +255,7 @@ func (i *InitReq) MarshalBinary() ([]byte, error) {
 }
 
 func (v *VersionResp) UnmarshalBinary(b []byte) error {
-	v.Version = binary.BigEndian.Uint32(b[0:4])
+	v.Version, b = Uint32(b)
 	return nil
 }
 func (v *VersionResp) MarshalBinary() ([]byte, error) {
@@ -292,9 +293,8 @@ func (r *ReadDirReq) MarshalBinary() ([]byte, error) {
 }
 
 func (r *HandleResp) UnmarshalBinary(b []byte) error {
-	r.Id = binary.BigEndian.Uint32(b[0:4])
-	l := binary.BigEndian.Uint32(b[4:8])
-	r.Handle = string(b[8 : 8+l])
+	r.Id, b = Uint32(b)
+	r.Handle, b = String(b)
 	return nil
 }
 func (r *HandleResp) MarshalBinary() ([]byte, error) {
@@ -317,11 +317,9 @@ func (r *CloseReq) MarshalBinary() ([]byte, error) {
 }
 
 func (r *StatusResp) UnmarshalBinary(b []byte) error {
-	r.Id = binary.BigEndian.Uint32(b[0:4])
-	r.ErrorCode = binary.BigEndian.Uint32(b[4:8])
-	l := binary.BigEndian.Uint32(b[8:12])
-	msg := b[12 : 12+l]
-	r.ErrorMessage = string(msg)
+	r.Id, b = Uint32(b)
+	r.ErrorCode, b = Uint32(b)
+	r.ErrorMessage, b = String(b)
 	return nil
 }
 func (r *StatusResp) MarshalBinary() ([]byte, error) {
@@ -329,50 +327,31 @@ func (r *StatusResp) MarshalBinary() ([]byte, error) {
 }
 
 func (r *NameResp) UnmarshalBinary(b []byte) error {
-	r.Id = binary.BigEndian.Uint32(b[0:4])
-	r.Count = binary.BigEndian.Uint32(b[4:8])
-	os := uint32(8) // offset
-	// @todo confirm Attr flags do not apply here
-
+	r.Id, b = Uint32(b)
+	r.Count, b = Uint32(b)
+	var flags uint32
+	
 	for i := uint32(0); i < r.Count; i++ {
 		v := NameRespFile{}
-		fnLen := binary.BigEndian.Uint32(b[os : os+4])
-		os += 4
-		v.Filename = string(b[os : os+fnLen])
-		os = os + fnLen
-		lnLen := binary.BigEndian.Uint32(b[os : os+4])
-		os += 4
-		v.Longname = string(b[os : os+lnLen])
-		os += lnLen
-
-		flags := binary.BigEndian.Uint32(b[os : os+4])
-		os += 4
-
+		v.Filename, b = String(b)
+		v.Longname, b = String(b)
+		flags, b = Uint32(b)
 		if flags&SSH_FILEXFER_ATTR_SIZE != 0 {
-			v.Attrs.Size = binary.BigEndian.Uint64(b[os : os+8])
-			os += 8
+			v.Attrs.Size, b = Uint64(b)
 		}
-
 		if flags&SSH_FILEXFER_ATTR_UIDGID != 0 {
-			v.Attrs.Uid = binary.BigEndian.Uint32(b[os : os+4])
-			v.Attrs.Gid = binary.BigEndian.Uint32(b[os+4 : os+8])
-			os += 8
+			v.Attrs.Uid, b = Uint32(b)
+			v.Attrs.Gid, b = Uint32(b)
 		}
-
 		if flags&SSH_FILEXFER_ATTR_PERMISSIONS != 0 {
-			v.Attrs.Permissions = binary.BigEndian.Uint32(b[os : os+4])
-			os += 4
+			v.Attrs.Permissions, b = Uint32(b)
 		}
-
 		if flags&SSH_FILEXFER_ATTR_ACMODTIME != 0 {
-			v.Attrs.Atime = binary.BigEndian.Uint32(b[os : os+4])
-			v.Attrs.Mtime = binary.BigEndian.Uint32(b[os+4 : os+8])
-			os += 8
+			v.Attrs.Atime, b = Uint32(b)
+			v.Attrs.Mtime, b = Uint32(b)
 		}
-
 		if flags&SSH_FILEXFER_ATTR_EXTENDED != 0 {
-			v.Attrs.ExtendedCount = binary.BigEndian.Uint32(b[os : os+4])
-			os += 4
+			v.Attrs.ExtendedCount, b = Uint32(b)
 			if v.Attrs.ExtendedCount > 0 {
 				panic("extended count not supported yet")
 			}
