@@ -1,4 +1,3 @@
-version: "3.4"
 services:
   sftp-server:
     image: "atmoz/sftp:alpine"
