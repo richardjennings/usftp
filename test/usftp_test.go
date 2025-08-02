@@ -53,6 +53,9 @@ func Test_Ls(t *testing.T) {
 	if !m["."].IsDir() {
 		t.Errorf("expected . to be a directory")
 	}
+	if m["."].IsRegular() {
+		t.Errorf("expected . to be a directory")
+	}
 
 	actual := m["."].String()
 	expected := "drwxr-xr-x"
@@ -61,6 +64,9 @@ func Test_Ls(t *testing.T) {
 	}
 
 	if m["file.txt"].IsDir() {
+		t.Errorf("expected file.txt to be a file")
+	}
+	if !m["file.txt"].IsRegular() {
 		t.Errorf("expected file.txt to be a file")
 	}
 }
