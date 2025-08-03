@@ -39,8 +39,34 @@ func Test_Ls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := 4
-	if len(names) != expected {
-		t.Errorf("got %d names, expected %d", len(names), expected)
+	{
+		expected := 4
+		if len(names) != expected {
+			t.Errorf("got %d names, expected %d", len(names), expected)
+		}
+	}
+
+	m := make(map[string]usftp.FileMode)
+	for _, name := range names {
+		m[name.Filename] = name.Attrs.Permissions
+	}
+	if !m["."].IsDir() {
+		t.Errorf("expected . to be a directory")
+	}
+	if m["."].IsRegular() {
+		t.Errorf("expected . to be a directory")
+	}
+
+	actual := m["."].String()
+	expected := "drwxr-xr-x"
+	if actual != expected {
+		t.Errorf("got %s, expected %s", actual, expected)
+	}
+
+	if (m["file1.txt"]).IsDir() {
+		t.Errorf("expected file.txt to be a file")
+	}
+	if !(m["file1.txt"]).IsRegular() {
+		t.Errorf("expected file.txt to be a file")
 	}
 }
