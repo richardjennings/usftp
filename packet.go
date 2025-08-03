@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding"
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
 
@@ -61,6 +62,32 @@ const (
 	SSH_FILEXFER_ATTR_PERMISSIONS = 0x00000004
 	SSH_FILEXFER_ATTR_ACMODTIME   = 0x00000008
 	SSH_FILEXFER_ATTR_EXTENDED    = 0x80000000
+)
+
+const (
+	// SSH_FXF_READ Open the file for reading.
+	SSH_FXF_READ = 0x00000001
+
+	// SSH_FXF_WRITE Open the file for writing.  If both this and SSH_FXF_READ
+	// are specified, the file is opened for both reading and writing.
+	SSH_FXF_WRITE = 0x00000002
+
+	// SSH_FXF_APPEND Force all writes to append data at the end of the file.
+	SSH_FXF_APPEND = 0x00000004
+
+	// SSH_FXF_CREAT If this flag is specified, then a new file will be created
+	// if one does not already exist (if O_TRUNC is specified, the new file will
+	// be truncated to zero length if it previously exists).
+	SSH_FXF_CREAT = 0x00000008
+
+	// SSH_FXF_TRUNC Forces an existing file with the same name to be truncated
+	// to zero length when creating a file by specifying SSH_FXF_CREAT.
+	// SSH_FXF_CREAT MUST also be specified if this flag is used.
+	SSH_FXF_TRUNC = 0x00000010
+
+	// SSH_FXF_EXCL Causes the request to fail if the named file already exists.
+	// SSH_FXF_CREAT MUST also be specified if this flag is used.
+	SSH_FXF_EXCL = 0x00000020
 )
 
 type (
@@ -185,6 +212,27 @@ type (
 		Handle string
 	}
 
+	// OpenReq
+	// Files are opened and created using the SSH_FXP_OPEN message
+	OpenReq struct {
+		Header
+		Filename string
+		Pflags   uint32
+		Attrs    Attrs
+	}
+
+	ReadReq struct {
+		Header
+		Handle string
+		Offset uint64
+		Len    uint32
+	}
+
+	DataResp struct {
+		Header
+		Data []byte
+	}
+
 	Attrs struct {
 		Size          uint64
 		Uid           uint32
@@ -215,6 +263,12 @@ func (p *packet) message() (Msg, error) {
 		m = &ReadDirReq{}
 	case SSH_FXP_NAME:
 		m = &NameResp{}
+	case SSH_FXP_OPEN:
+		m = &OpenReq{}
+	case SSH_FXP_READ:
+		m = &ReadReq{}
+	case SSH_FXP_DATA:
+		m = &DataResp{}
 	default:
 		return nil, fmt.Errorf("unknown packet type: %v", p.Type)
 	}
@@ -233,6 +287,10 @@ func TypeId(m Msg) (uint8, error) {
 		return SSH_FXP_READDIR, nil
 	case *CloseReq:
 		return SSH_FXP_CLOSE, nil
+	case *OpenReq:
+		return SSH_FXP_OPEN, nil
+	case *ReadReq:
+		return SSH_FXP_READ, nil
 	default:
 		return 0, fmt.Errorf("unhandled msg type: %T", m)
 	}
@@ -306,13 +364,12 @@ func (r *CloseReq) UnmarshalBinary(b []byte) error {
 }
 func (r *CloseReq) MarshalBinary() ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
-	if err := binary.Write(buf, binary.BigEndian, r.Id); err != nil {
+	if err := WriteUint32(buf, r.Id); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(buf, binary.BigEndian, uint32(len(r.Handle))); err != nil {
+	if err := WriteString(buf, r.Handle); err != nil {
 		return nil, err
 	}
-	buf.Write([]byte(r.Handle))
 	return buf.Bytes(), nil
 }
 
@@ -365,5 +422,61 @@ func (r *NameResp) UnmarshalBinary(b []byte) error {
 }
 
 func (r *NameResp) MarshalBinary() ([]byte, error) {
+	return nil, nil
+}
+
+func (r *OpenReq) UnmarshalBinary(b []byte) error {
+	return nil
+}
+func (r *OpenReq) MarshalBinary() ([]byte, error) {
+	if r.Pflags&SSH_FXF_READ == 0 {
+		return nil, errors.New("SSH_FXF_READ needs to be set for reading")
+	}
+	buf := bytes.NewBuffer(nil)
+	if err := WriteUint32(buf, r.Id); err != nil {
+		return nil, err
+	}
+	if err := WriteString(buf, r.Filename); err != nil {
+		return nil, err
+	}
+	if err := WriteUint32(buf, r.Pflags); err != nil {
+		return nil, err
+	}
+
+	// currently write 0 flag mask and 0 attributes
+	if err := WriteUint32(buf, 0); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (r *ReadReq) UnmarshalBinary(b []byte) error {
+	return nil
+}
+func (r *ReadReq) MarshalBinary() ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	if err := WriteUint32(buf, r.Id); err != nil {
+		return nil, err
+	}
+	if err := WriteString(buf, r.Handle); err != nil {
+		return nil, err
+	}
+	if err := WriteUint64(buf, r.Offset); err != nil {
+		return nil, err
+	}
+	if err := WriteUint32(buf, r.Len); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (r *DataResp) UnmarshalBinary(b []byte) error {
+	r.Id, b = Uint32(b)
+	_, b = Uint32(b)
+	r.Data = b
+	return nil
+}
+func (r *DataResp) MarshalBinary() ([]byte, error) {
 	return nil, nil
 }

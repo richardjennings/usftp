@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"github.com/richardjennings/usftp"
 	"golang.org/x/crypto/ssh"
 	"testing"
@@ -68,5 +69,23 @@ func Test_Ls(t *testing.T) {
 	}
 	if !(m["file1.txt"]).IsRegular() {
 		t.Errorf("expected file.txt to be a file")
+	}
+}
+
+func Test_Get(t *testing.T) {
+	c := clientHelper(t)
+	defer func() { _ = c.Close() }()
+	s, err := usftp.NewSession(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+
+	w := bytes.NewBuffer(nil)
+	if err := s.Get("/share/file1.txt", w); err != nil {
+		t.Fatal(err)
+	}
+	if w.String() != "a" {
+		t.Errorf("got %q, expected %q", w.String(), "a")
 	}
 }
