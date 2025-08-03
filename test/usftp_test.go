@@ -63,10 +63,10 @@ func Test_Ls(t *testing.T) {
 		t.Errorf("got %s, expected %s", actual, expected)
 	}
 
-	if m["file.txt"].IsDir() {
+	if (m["file1.txt"]).IsDir() {
 		t.Errorf("expected file.txt to be a file")
 	}
-	if !m["file.txt"].IsRegular() {
+	if !(m["file1.txt"]).IsRegular() {
 		t.Errorf("expected file.txt to be a file")
 	}
 }
