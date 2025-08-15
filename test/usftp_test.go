@@ -102,22 +102,22 @@ func Test_Find(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if files[3].Filename != "dir" {
-		t.Errorf("got %q, expected %q", files[3].Filename, "dir")
+	if files[2].Filename != "dir" {
+		t.Errorf("got %q, expected %q", files[2].Filename, "dir")
 	}
-	if len(files[3].Children) != 4 {
-		t.Fatalf("expected %d children, got %d", 4, len(files[3].Children))
+	if len(files[2].Children) != 4 {
+		t.Fatalf("expected %d children, got %d", 4, len(files[2].Children))
 	}
-	if files[3].Children[2].Filename != "file2.txt" {
-		t.Errorf("got %q, expected %q", files[3].Children[2].Filename, "file2.txt")
+	if files[2].Children[3].Filename != "file2.txt" {
+		t.Errorf("got %q, expected %q", files[2].Children[3].Filename, "file2.txt")
 	}
-	if files[3].Children[3].Filename != "dir2" {
-		t.Errorf("got %q, expected %q", files[3].Children[3].Filename, "dir2")
+	if files[2].Children[2].Filename != "dir2" {
+		t.Errorf("got %q, expected %q", files[2].Children[2].Filename, "dir2")
 	}
-	if len(files[3].Children[3].Children) != 3 {
-		t.Fatalf("expected %d children, got %d", 3, len(files[3].Children[3].Children))
+	if len(files[2].Children[2].Children) != 3 {
+		t.Fatalf("expected %d children, got %d", 3, len(files[2].Children[2].Children))
 	}
-	if files[3].Children[3].Children[2].Filename != "file3.txt" {
-		t.Errorf("got %q, expected %q", files[3].Children[3].Children[2].Filename, "file3.txt")
+	if files[2].Children[2].Children[2].Filename != "file3.txt" {
+		t.Errorf("got %q, expected %q", files[2].Children[2].Children[2].Filename, "file3.txt")
 	}
 }

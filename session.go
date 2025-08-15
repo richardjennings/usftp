@@ -6,6 +6,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 	"io"
+	"sort"
 	"sync/atomic"
 )
 
@@ -123,6 +124,9 @@ func (s *Session) Ls(path string) ([]*NameRespFile, error) {
 		}
 	}
 	_ = s.CloseReq(id, read, handle)
+	sort.Slice(names, func(i, j int) bool {
+		return names[i].Filename < names[j].Filename
+	})
 	return names, nil
 }
 
