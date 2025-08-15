@@ -200,11 +200,12 @@ type (
 	NameResp struct {
 		Header
 		Count uint32
-		Names []NameRespFile
+		Names []*NameRespFile
 	}
 	NameRespFile struct {
 		Filename string
 		Longname string
+		Children []*NameRespFile
 		Attrs    Attrs
 	}
 	CloseReq struct {
@@ -416,7 +417,7 @@ func (r *NameResp) UnmarshalBinary(b []byte) error {
 			}
 		}
 
-		r.Names = append(r.Names, v)
+		r.Names = append(r.Names, &v)
 	}
 	return nil
 }

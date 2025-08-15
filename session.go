@@ -87,6 +87,72 @@ func (s *Session) init() error {
 	return nil
 }
 
+func (s *Session) Ls(path string) ([]*NameRespFile, error) {
+	var names []*NameRespFile
+	id := s.nextSeq()
+	read := s.r.getChan(id)
+	defer s.r.delChan(id)
+	if err := s.w.write(&OpenDirReq{Header: Header{Id: id}, Path: path}); err != nil {
+		return nil, err
+	}
+	msg := <-read
+	var handle string
+	handleResp, statusResp, err := s.handleOrStatusResp(msg)
+	switch true {
+	case err != nil:
+		return nil, err
+	case handleResp != nil:
+		handle = handleResp.Handle
+	case statusResp != nil:
+		return nil, fmt.Errorf("error: %s", statusResp.ErrorMessage)
+	}
+	cont := true
+	for cont {
+		nameResp, statusResp, err := s.readDirReq(id, read, handle)
+		switch true {
+		case err != nil:
+			return nil, err
+		case nameResp != nil:
+			names = append(names, nameResp.Names...)
+		case statusResp != nil:
+			if statusResp.ErrorCode == SSH_FX_EOF {
+				cont = false
+				continue
+			}
+			return nil, fmt.Errorf("error: %s", statusResp.ErrorMessage)
+		}
+	}
+	_ = s.CloseReq(id, read, handle)
+	return names, nil
+}
+
+func (s *Session) Find(path string) ([]*NameRespFile, error) {
+	return s.find(path, "")
+}
+
+func (s *Session) find(path string, parent string) ([]*NameRespFile, error) {
+	if parent != "" {
+		path = fmt.Sprintf("%s/%s", parent, path)
+	}
+	files, err := s.Ls(path)
+	if err != nil {
+		return nil, err
+	}
+	for i, file := range files {
+		if file.Filename == "." || file.Filename == ".." {
+			continue
+		}
+		if file.Attrs.Permissions.IsDir() {
+			childFiles, err := s.find(file.Filename, path)
+			if err != nil {
+				return nil, err
+			}
+			files[i].Children = childFiles
+		}
+	}
+	return files, nil
+}
+
 func (s *Session) Get(from string, out io.Writer) error {
 	id := s.nextSeq()
 	read := s.r.getChan(id)
@@ -103,7 +169,7 @@ func (s *Session) Get(from string, out io.Writer) error {
 	//    #define SFTP_MAX_MSG_LENGTH	(256 * 1024)
 	cont := true
 	offset := uint64(0)
-	len := uint32(10 * 1024)
+	len := uint32(255 * 1024)
 	for cont {
 		b, err := s.ReadReq(id, read, handle, offset, len)
 		if err != nil {
@@ -177,45 +243,6 @@ func (s *Session) OpenReq(id uint32, read chan Msg, path string) (string, error)
 		return "", fmt.Errorf("error: %s", statusResp.ErrorMessage)
 	}
 	return handle, nil
-}
-
-func (s *Session) Ls(path string) ([]NameRespFile, error) {
-	var names []NameRespFile
-	id := s.nextSeq()
-	read := s.r.getChan(id)
-	defer s.r.delChan(id)
-	if err := s.w.write(&OpenDirReq{Header: Header{Id: id}, Path: path}); err != nil {
-		return nil, err
-	}
-	msg := <-read
-	var handle string
-	handleResp, statusResp, err := s.handleOrStatusResp(msg)
-	switch true {
-	case err != nil:
-		return nil, err
-	case handleResp != nil:
-		handle = handleResp.Handle
-	case statusResp != nil:
-		return nil, fmt.Errorf("error: %s", statusResp.ErrorMessage)
-	}
-	cont := true
-	for cont {
-		nameResp, statusResp, err := s.readDirReq(id, read, handle)
-		switch true {
-		case err != nil:
-			return nil, err
-		case nameResp != nil:
-			names = append(names, nameResp.Names...)
-		case statusResp != nil:
-			if statusResp.ErrorCode == SSH_FX_EOF {
-				cont = false
-				continue
-			}
-			return nil, fmt.Errorf("error: %s", statusResp.ErrorMessage)
-		}
-	}
-	_ = s.CloseReq(id, read, handle)
-	return names, nil
 }
 
 func (s *Session) readDirReq(id uint32, read chan Msg, handle string) (*NameResp, *StatusResp, error) {

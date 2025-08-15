@@ -89,3 +89,35 @@ func Test_Get(t *testing.T) {
 		t.Errorf("got %q, expected %q", w.String(), "a")
 	}
 }
+
+func Test_Find(t *testing.T) {
+	c := clientHelper(t)
+	defer func() { _ = c.Close() }()
+	s, err := usftp.NewSession(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+	files, err := s.Find("/share")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if files[3].Filename != "dir" {
+		t.Errorf("got %q, expected %q", files[3].Filename, "dir")
+	}
+	if len(files[3].Children) != 4 {
+		t.Fatalf("expected %d children, got %d", 4, len(files[3].Children))
+	}
+	if files[3].Children[2].Filename != "file2.txt" {
+		t.Errorf("got %q, expected %q", files[3].Children[2].Filename, "file2.txt")
+	}
+	if files[3].Children[3].Filename != "dir2" {
+		t.Errorf("got %q, expected %q", files[3].Children[3].Filename, "dir2")
+	}
+	if len(files[3].Children[3].Children) != 3 {
+		t.Fatalf("expected %d children, got %d", 3, len(files[3].Children[3].Children))
+	}
+	if files[3].Children[3].Children[2].Filename != "file3.txt" {
+		t.Errorf("got %q, expected %q", files[3].Children[3].Children[2].Filename, "file3.txt")
+	}
+}
