@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func Dial(user string, host string, port int, privateKeyPath string) (*ssh.Client, error) {
+func Dial(user string, host string, port int, privateKeyPath string, hostKeyCallback ssh.HostKeyCallback) (*ssh.Client, error) {
 	b, err := os.ReadFile(privateKeyPath)
 	signer, err := ssh.ParsePrivateKey(b)
 	if err != nil {
@@ -20,7 +20,10 @@ func Dial(user string, host string, port int, privateKeyPath string) (*ssh.Clien
 	config := ssh.ClientConfig{
 		User:            user,
 		Auth:            auths,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // @todo handle properly
+		HostKeyCallback: hostKeyCallback,
+	}
+	if config.HostKeyCallback == nil {
+		config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 	addr := fmt.Sprintf("%s:%d", host, port)
 	return ssh.Dial("tcp", addr, &config)
