@@ -2,6 +2,7 @@ package usftp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
@@ -130,11 +131,24 @@ func (s *Session) Ls(path string) ([]*NameRespFile, error) {
 	return names, nil
 }
 
-func (s *Session) Find(path string) ([]*NameRespFile, error) {
-	return s.find(path, "")
+var ErrVisitComplete = errors.New("visit complete")
+
+func (s *Session) Walk(path string, visitor Visitor) error {
+	_, err := s.find(path, "", visitor)
+	if err != nil {
+		if errors.Is(err, ErrVisitComplete) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
-func (s *Session) find(path string, parent string) ([]*NameRespFile, error) {
+func (s *Session) Find(path string) ([]*NameRespFile, error) {
+	return s.find(path, "", nil)
+}
+
+func (s *Session) find(path string, parent string, visitor Visitor) ([]*NameRespFile, error) {
 	if parent != "" {
 		path = fmt.Sprintf("%s/%s", parent, path)
 	}
@@ -142,12 +156,23 @@ func (s *Session) find(path string, parent string) ([]*NameRespFile, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, file := range files {
+		file.Path = path
+		if file.Filename == "." || file.Filename == ".." {
+			continue
+		}
+		if !file.Attrs.Permissions.IsDir() && visitor != nil {
+			if done := visitor.Visit(file); done {
+				return nil, ErrVisitComplete
+			}
+		}
+	}
 	for i, file := range files {
 		if file.Filename == "." || file.Filename == ".." {
 			continue
 		}
 		if file.Attrs.Permissions.IsDir() {
-			childFiles, err := s.find(file.Filename, path)
+			childFiles, err := s.find(file.Filename, path, visitor)
 			if err != nil {
 				return nil, err
 			}

@@ -205,8 +205,10 @@ type (
 	NameRespFile struct {
 		Filename string
 		Longname string
-		Children []*NameRespFile
 		Attrs    Attrs
+
+		Path     string
+		Children []*NameRespFile
 	}
 	CloseReq struct {
 		Header
@@ -302,7 +304,7 @@ func (h Header) id() uint32 {
 }
 
 func (i *InitReq) UnmarshalBinary(b []byte) error {
-	i.Version, b = Uint32(b)
+	i.Version, _ = Uint32(b)
 	return nil
 }
 func (i *InitReq) MarshalBinary() ([]byte, error) {
@@ -314,7 +316,7 @@ func (i *InitReq) MarshalBinary() ([]byte, error) {
 }
 
 func (v *VersionResp) UnmarshalBinary(b []byte) error {
-	v.Version, b = Uint32(b)
+	v.Version, _ = Uint32(b)
 	return nil
 }
 func (v *VersionResp) MarshalBinary() ([]byte, error) {
@@ -353,7 +355,7 @@ func (r *ReadDirReq) MarshalBinary() ([]byte, error) {
 
 func (r *HandleResp) UnmarshalBinary(b []byte) error {
 	r.Id, b = Uint32(b)
-	r.Handle, b = String(b)
+	r.Handle, _ = String(b)
 	return nil
 }
 func (r *HandleResp) MarshalBinary() ([]byte, error) {
@@ -377,7 +379,7 @@ func (r *CloseReq) MarshalBinary() ([]byte, error) {
 func (r *StatusResp) UnmarshalBinary(b []byte) error {
 	r.Id, b = Uint32(b)
 	r.ErrorCode, b = Uint32(b)
-	r.ErrorMessage, b = String(b)
+	r.ErrorMessage, _ = String(b)
 	return nil
 }
 func (r *StatusResp) MarshalBinary() ([]byte, error) {
