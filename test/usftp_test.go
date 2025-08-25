@@ -121,3 +121,32 @@ func Test_Find(t *testing.T) {
 		t.Errorf("got %q, expected %q", files[2].Children[2].Children[2].Filename, "file3.txt")
 	}
 }
+
+func Test_Walk_UnseenFileVisitor(t *testing.T) {
+	c := clientHelper(t)
+	defer func() { _ = c.Close() }()
+	s, err := usftp.NewSession(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+	seen := map[string]*usftp.NameRespFile{
+		"/share/file1.txt":     {Attrs: usftp.Attrs{Size: 1}},
+		"/share/dir/file2.txt": {Attrs: usftp.Attrs{Size: 1}},
+	}
+	v := usftp.NewUnseenFileVisitor(seen, []string{})
+	if err := s.Walk("/share", v); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Files()) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(v.Files()))
+	}
+	expectedPath := "/share/dir/dir2"
+	if v.Files()[0].Path != expectedPath {
+		t.Fatalf("expected %q, got %q", expectedPath, v.Files()[0].Path)
+	}
+	expectedName := "file3.txt"
+	if v.Files()[0].Filename != expectedName {
+		t.Fatalf("expected %q, got %q", expectedName, v.Files()[0].Filename)
+	}
+}

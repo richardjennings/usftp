@@ -1,4 +1,4 @@
-.PHONY: test
+.PHONY: test test-setup test-setdown
 
 test:
 	bash test.sh
