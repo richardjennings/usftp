@@ -8,7 +8,7 @@ import (
 )
 
 func Test_Connection(t *testing.T) {
-	c, err := usftp.Dial("foo", "127.0.0.1", 2222, "./ssh_key")
+	c, err := usftp.Dial("foo", "127.0.0.1", 2222, "./ssh_key", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,7 +21,7 @@ func Test_Connection(t *testing.T) {
 }
 
 func clientHelper(t *testing.T) *ssh.Client {
-	c, err := usftp.Dial("foo", "127.0.0.1", 2222, "./ssh_key")
+	c, err := usftp.Dial("foo", "127.0.0.1", 2222, "./ssh_key", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
